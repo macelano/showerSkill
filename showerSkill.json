@@ -1,0 +1,58 @@
+{
+    "interactionModel": {
+        "languageModel": {
+            "invocationName": "shower",
+            "intents": [
+                {
+                    "name": "GetCommand",
+                    "slots": [
+                        {
+                            "name": "command",
+                            "type": "COMMAND"
+                        },
+                        {
+                            "name": "userId",
+                            "type": "AMAZON.US_FIRST_NAME"
+                        }
+                    ],
+                    "samples": [
+                        "to {command} for {userId}",
+                        "to {command}"
+                    ]
+                }
+            ],
+            "types": [
+                {
+                    "name": "COMMAND",
+                    "values": [
+                        {
+                            "name": {
+                                "value": "turn on"
+                            }
+                        },
+                        {
+                            "name": {
+                                "value": "turn off"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "AMAZON.US_FIRST_NAME",
+                    "values": [
+                        {
+                            "name": {
+                                "value": "jets"
+                            }
+                        },
+                        {
+                            "name": {
+                                "value": "rain"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}
