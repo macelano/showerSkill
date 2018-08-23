@@ -1,6 +1,5 @@
 // Ref: Control Kohler DTV with Amazon Echo  
 // by: Mark Celano 
-//
 
 //Load http for ajax calls
 var https = require('http');
@@ -8,34 +7,24 @@ var https = require('http');
 // Load the AWS SDK for Node.js
 var AWS = require('aws-sdk');
 
-
 //Setup Environment variables for showerUri, user1, and user2, ...
-// Now set from DynamoDB based on userId
+//These will be set from DynamoDB based on userId
+var defaultUri = "http://127.0.0.1/shower";
 var uri = ""; //process.env.showerUri; 
-var user1 = ""; //process.env.user1;
-var user2 = ""; //process.env.user2;
-var user3 = ""; //process.env.user3;
-var user4 = ""; //process.env.user4;
-var user5 = ""; //process.env.user5;
-var user6 = ""; //process.env.user6;
+var user1 = "", user2 = "", user3 = "", user4 = "", user5 = "", user6 = ""; 
+
+//Special variables for custom response
 var devUserId = process.env.devUserId;
 var homeUserId = process.env.homeUserId;
 
-// Functions
-var generateResponse;
-var buildSpeechletResponse;
-var getDBUserSettings;
-var putDBUserSettings;
-var detectUser;
-var setSettings;
+//Other Variables
+var userName = "";      // used name in reponse (Example:  Mark, Kim, etc.)
+var command = "";       // Intent Command
+var speachlet = "";     // Speachlet respose returned through Alexa
 
-// Variables
-var assemble = "";
-var userName = "";
-var endpoint = "";
-var command = "";
-var path = "";
-var userSettings;
+var endpoint = "";      // uri and path (Example: http://71.205.88.49:8080 + /shower)
+var path = "";          // shower CGI function call (Example: /start_user.cgi)
+var queryParams = "";   // queryParams
 
 // Create the DynamoDB service object
 var dynamodb = new AWS.DynamoDB({ apiVersion: '2018-08-11' });
@@ -49,17 +38,24 @@ exports.handler = (event, context) => {
             console.log("NEW SESSION");
         }
         getDBUserSettings(event.session.user.userId, event, context,
+            //Callback function:  Process Response
             function(event, context) {
-                assemble = "";
+                queryParams = "";
                 endpoint = "";
                 command = "";
                 path = "";
             
+                console.log("Event Type: " + event.request.type);
+                
                 switch (event.request.type) {
                     case "LaunchRequest":
                         // Launch Request
                         console.log("Callback: LAUNCH REQUEST");
-                        context.succeed(generateResponse(buildSpeechletResponse("Ask me to do something with your Shower, such as turn on or off.", true), {}));
+                        if (uri == defaultUri){
+                            context.succeed(generateResponse(buildSpeechletResponse("Your Shower must be configured, including configuring port forwarding to your Kohler DTV Plus System Controller Module.  Please contact the developer to have skill configured for your implementation.", true), {}));
+                        } else {
+                            context.succeed(generateResponse(buildSpeechletResponse("Ask me to do something with your Shower, such as turn on or off.", true), {}));
+                        }
                         break;
                     case "IntentRequest":
                         if (event.request.intent.slots.userId) detectUser(event.request.intent.slots.userId.value, event.session.user.userId);
@@ -72,67 +68,55 @@ exports.handler = (event, context) => {
                                 switch (command) {
                                     case "turn on":
                                         path = '/start_user.cgi';
+                                        if (userName === ''){
+                                            speachlet = "Turning Shower on"
+                                        } else {
+                                            speachlet = "Turning Shower on for " + userName;
+                                        }
                                         break;
                                     case "turn off":
                                         path = '/stop_user.cgi';
+                                        speachlet = "Turning Shower off"
                                         break;
-                                }
+                                    default:
+                                        path = '';
+                                        speachlet = "Sorry, I didn't understand your request."
+                            }
             
-                                if (path == "/start_user.cgi") {
-                                    endpoint = uri + path;
-            
-                                    if (assemble) endpoint = uri + path + "?" + assemble;
-                                    console.log("Callback: " + endpoint);
-                                    var body = "";
-                                    // Kohler DTV Shower: Request
-                                    https.get(endpoint, (response) => {
-                                        response.on('data', (chunk) => {
-                                            body += chunk;
-                                        });
-                                        response.on('end', () => {
-                                            //var data = JSON.parse(body);
-                                            if (userName === ''){
-                                            context.succeed(generateResponse(
-                                                buildSpeechletResponse('Turning shower on', true), {}));
-                                            }
-                                            else {
-                                            context.succeed(generateResponse(
-                                                buildSpeechletResponse('Turning shower on for ' + userName, true), {}));
-                                            }
-                                        });
+                            endpoint = uri + path;
+                            if (queryParams) endpoint = uri + path + "?" + queryParams;
+                            console.log("Callback: " + endpoint);
+                            
+                            if (path === ''){
+                                console.log("Callback:  no cases matched");
+                                context.succeed(generateResponse(buildSpeechletResponse(speachlet, true), {}));
+                            } else {
+                                var body = "";
+                                // Kohler DTV Shower: Request
+                                https.get(endpoint, (response) => {
+                                    console.log('statusCode:', response.statusCode);
+                                    console.log('headers:', response.headers);
+
+                                    response.on('data', (chunk) => {
+                                        body += chunk;
                                     });
-                                }
-                                else if (path == "/stop_user.cgi") {
-                                    endpoint = uri + path;
-            
-                                    if (assemble) endpoint = uri + path + "?" + assemble;
-                                    console.log("Callback: " + endpoint);
-                                    var body = "";
-                                    // Kohler DTV Shower: Request
-                                    https.get(endpoint, (response) => {
-                                        response.on('data', (chunk) => {
-                                            body += chunk;
-                                        });
-                                        response.on('end', () => {
-                                            //var data = JSON.parse(body);
-                                            context.succeed(generateResponse(
-                                                buildSpeechletResponse(`Turning shower off`, true), {}));
-                                        });
+                                    
+                                    response.on('end', () => {
+                                        context.succeed(generateResponse(
+                                            buildSpeechletResponse(speachlet, true), {}));
                                     });
-                                }
-                                else {
-                                    console.log("Callback:  no cases matched");
-                                    context.succeed(generateResponse(buildSpeechletResponse(`Sorry, I didn't understand`, true), {}));
-                                }
-                                break;
-                            default:
-                                throw "Invalid intent";
+                                }).on('error', (e) => {
+                                    console.error(`Callback: Error: ${e.message}`);
+                                    generateResponse(buildSpeechletResponse('Failed ' + speachlet + ' ' + e.message, true), {});
+                                });
+                            }
                         }
                     case "SessionEndedRequest":
                         // Session Ended Request
                         console.log("Callback: SESSION ENDED REQUEST");
                         break;
                     default:
+                        console.log("Callback: DEFAULT Case");
                         context.fail(`INVALID REQUEST TYPE: ${event.request.type}`);
                 }
             
@@ -141,12 +125,13 @@ exports.handler = (event, context) => {
         );
     }
     catch (error) {
-        context.fail(`Exception Exprot Handler: ${error}`);
+        console.log("Callback: Catch" + error);
+        context.fail(`Exception Export Handler: ${error}`);
     }
 };
 
 // Helpers
-buildSpeechletResponse = (outputText, shouldEndSession) => {
+var buildSpeechletResponse = (outputText, shouldEndSession) => {
     return {
         outputSpeech: {
             type: "PlainText",
@@ -156,7 +141,7 @@ buildSpeechletResponse = (outputText, shouldEndSession) => {
     };
 };
 
-generateResponse = (speechletResponse, sessionAttributes) => {
+var generateResponse = (speechletResponse, sessionAttributes) => {
     return {
         version: "1.0",
         sessionAttributes: sessionAttributes,
@@ -164,7 +149,8 @@ generateResponse = (speechletResponse, sessionAttributes) => {
     };
 };
 
-putDBUserSettings = function(userId) {
+//Setup default Settings into Dynamo DB (key: userId)
+var putDBUserSettings = function(userId) {
     console.log('putDBUserSettings Function call');
 
     var docClient = new AWS.DynamoDB.DocumentClient();
@@ -175,14 +161,13 @@ putDBUserSettings = function(userId) {
         Item: {
             'userId': userId,
             'settings': {
-                "showerUri": 'http://127.0.0.1:8080/shower',
-                "User1": 'mom',
-                "User2": 'dad',
-                "User3": 'boy',
-                "User4": 'girl',
-                "User5": '5',
-                "User6": '6',
-
+                "showerUri": defaultUri,
+                "User1": 'one',
+                "User2": 'two',
+                "User3": 'three',
+                "User4": 'four',
+                "User5": 'five',
+                "User6": 'six'
             }
         }
     };
@@ -197,7 +182,8 @@ putDBUserSettings = function(userId) {
     });
 };
 
-getDBUserSettings = function(userId, event, context, callback) {
+//Get User Settings from Dynamo DB (key: userId)
+var getDBUserSettings = function(userId, event, context, callback) {
     console.log('getDBUserSettings Function call');
 
     var params = {
@@ -220,17 +206,17 @@ getDBUserSettings = function(userId, event, context, callback) {
             else {
                 console.log("getDBUserSettings: DB Read Success", data.Item.settings.M);
                 setSettings(data.Item.settings.M, callback);
-                if (callback) {
-                    console.log("getDBUserSettings: Calling Callback Function");
-                    callback(event, context);
-                }
+            }
+            if (callback) {
+                console.log("getDBUserSettings: Calling Callback Function");
+                callback(event, context);
             }
         }
     });
 };
 
-setSettings = function(settings) {
-    // console.log("setSettings: settings:", settings);
+//Set Setting out of DB setting object
+var setSettings = function(settings) {
     uri   = settings.showerUri.S;
     user1 = settings.User1.S;
     user2 = settings.User2.S;
@@ -240,29 +226,30 @@ setSettings = function(settings) {
     user6 = settings.User6.S;
 };
 
-detectUser = function(user, userId) {
+//Set userName and queryParams based on userId
+var detectUser = function(user, userId) {
     console.log('detectUser: User: ' + user + " UserId: " + userId);
     userName = user;
     if (user == user1) {
-        assemble = 'user=1';
+        queryParams = 'user=1';
     }
     else if (user == user2) {
-        assemble = 'user=2';
+        queryParams = 'user=2';
     }
     else if (user == user3) {
-        assemble = 'user=3';
+        queryParams = 'user=3';
     }
     else if (user == user4) {
-        assemble = 'user=4';
+        queryParams = 'user=4';
     }
     else if (user == user5) {
-        assemble = 'user=5';
+        queryParams = 'user=5';
     }
     else if (user == user6) {
-        assemble = 'user=6';
+        queryParams = 'user=6';
     }
     else { // Default response: user == undefined || user == null
-        assemble = 'user=1';
+        queryParams = 'user=1';
         if (userId === devUserId){
             userName = 'Development';
         } 
