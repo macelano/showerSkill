@@ -58,8 +58,10 @@ exports.handler = (event, context) => {
                         }
                         break;
                     case "IntentRequest":
-                        if (event.request.intent.slots.userId) detectUser(event.request.intent.slots.userId.value, event.session.user.userId);
+                        console.log("Callback: IntentRequest: detect user");
+                        if (event.request.intent.slots.userId && event.session.user) detectUser(event.request.intent.slots.userId.value, event.session.user.userId);
                         if (event.request.intent.slots.command) command = event.request.intent.slots.command.value;
+                        console.log("Callback: IntentRequest: command = " + command);
             
                         // Intent Request
                         console.log("Callback: SHOWER INTENT REQUEST");
@@ -80,7 +82,7 @@ exports.handler = (event, context) => {
                                         break;
                                     default:
                                         path = '';
-                                        speachlet = "Sorry, I didn't understand your request."
+                                        speachlet = "Sorry, I didn't understand your request. Try saying; ask my shower to turn on or off."
                             }
             
                             endpoint = uri + path;
@@ -106,8 +108,9 @@ exports.handler = (event, context) => {
                                             buildSpeechletResponse(speachlet, true), {}));
                                     });
                                 }).on('error', (e) => {
-                                    console.error(`Callback: Error: ${e.message}`);
-                                    generateResponse(buildSpeechletResponse('Failed ' + speachlet + ' ' + e.message, true), {});
+                                    context.succeed(generateResponse(
+                                        buildSpeechletResponse('Failed ' + speachlet + '. ' + e, true), {}));
+                                    console.error(`Callback: ${e}`);
                                 });
                             }
                         }
@@ -228,36 +231,29 @@ var setSettings = function(settings) {
 
 //Set userName and queryParams based on userId
 var detectUser = function(user, userId) {
+    if (user === undefined) user = "";
     console.log('detectUser: User: ' + user + " UserId: " + userId);
     userName = user;
-    if (user == user1) {
+    if (user === user1) {
         queryParams = 'user=1';
-    }
-    else if (user == user2) {
+    } else if (user === user2) {
         queryParams = 'user=2';
-    }
-    else if (user == user3) {
+    } else if (user === user3) {
         queryParams = 'user=3';
-    }
-    else if (user == user4) {
+    } else if (user === user4) {
         queryParams = 'user=4';
-    }
-    else if (user == user5) {
+    } else if (user == user5) {
         queryParams = 'user=5';
-    }
-    else if (user == user6) {
+    } else if (user === user6) {
         queryParams = 'user=6';
-    }
-    else { // Default response: user == undefined || user == null
+    } else { // Default response: user == undefined || user == null
         queryParams = 'user=1';
         if (userId === devUserId){
             userName = 'Development';
-        } 
-        else if (userId === homeUserId) {
+        } else if (userId === homeUserId) {
             userName = 'Peanut';
-        } 
-        else {
-        userName = '';
+        } else {
+            userName = '';
         }
         console.log("detectUser: no match setting user to " + userName);
     }
